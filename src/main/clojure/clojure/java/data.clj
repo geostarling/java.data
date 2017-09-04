@@ -19,7 +19,9 @@
  default object case, using one of :ignore, :log, :error"}
  *to-java-object-missing-setter* :ignore)
 
-(defmulti to-java (fn [destination-type value] [destination-type (class value)]))
+(defmulti to-java (fn
+                    ([value] (class value))
+                    ([destination-type value] [destination-type (class value)])))
 (defmulti from-java class)
 
 (defn- get-property-descriptors [clazz]
@@ -90,6 +92,10 @@
           (= *to-java-object-missing-setter* :log)
           (info message))))
 
+
+(defmethod to-java :default [value]
+  value)
+
 (defmethod to-java [Object clojure.lang.APersistentMap] [clazz props]
   "Convert a Clojure map to the specified class using reflection to set the properties"
   (let [instance (.newInstance clazz)
@@ -136,7 +142,7 @@
         (into {} (for [[key getter-fn] (seq getter-map)] [key (getter-fn instance)]))))))
 
 
-(doseq [clazz [String Character Byte Short Integer Long Float Double Boolean BigInteger BigDecimal]]
+(doseq [clazz [Class String Character Byte Short Integer Long Float Double Boolean BigInteger BigDecimal]]
   (derive clazz ::do-not-convert))
 
 (defmacro ^{:private true} defnumber [box prim prim-getter]
@@ -167,7 +173,8 @@
 (defmethod from-java Iterable [instance] (for [each (seq instance)] (from-java each)))
 (prefer-method from-java Iterable Object)
 
-(defmethod from-java java.util.Map [instance] (into {} instance))
+(defmethod from-java java.util.Map [instance] (into {} (for [[k v] instance] [(from-java k) (from-java v)])))
+;;(defmethod from-java java.util.Map [instance] (into {} instance))
 (prefer-method from-java java.util.Map Iterable)
 
 (defmethod from-java nil [_] nil)
